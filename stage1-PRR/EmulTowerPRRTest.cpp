@@ -18,6 +18,7 @@
 #include "TPGFEDataformat.hh"
 #include "TPGBEDataformat.hh"
 #include "Stage1IO.hh"
+#include "HGCalTower_SA.h"
 
 #include "yaml-cpp/yaml.h"
 
@@ -66,6 +67,8 @@ int main(int argc, char** argv)
   unsigned int startFrame = 0;
   unsigned int nFrames = inputs.begin()->second.size();
   int iBX = 0;
+  uint32_t board = 0;  // PLACEHOLDER: no board id in the driver; input header says "ID: x0"
+  l1thgcfirmware::HGCalTowerCollection towers;  // pTTs of all BXs
 
   while (startFrame < nFrames) {
     const l1t::demo::Frame& leadFrame = inputs.begin()->second.at(startFrame);
@@ -371,6 +374,16 @@ int main(int argc, char** argv)
     // End test
     ///////////////////////////////// CE_H ///////////////////////////////////////////
 
+    // Store the pTTs of this BX in the tower collection (index i = phi*20 + eta)
+    auto addTowers = [&](const std::vector<uint64_t>& values, l1thgcfirmware::HGCalTower::Detector detector) {
+      if (values.size() != 600)
+        std::cerr << "WARNING: BX " << iBX << ": expected 600 pTTs, got " << values.size() << std::endl;
+      for (unsigned int i = 0; i < values.size(); ++i)
+        towers.add(l1thgcfirmware::HGCalTower(board, i % 20, i / 20, detector, static_cast<unsigned int>(iBX), static_cast<uint8_t>(values[i])));
+    };
+    addTowers(outputValues_CE_E, l1thgcfirmware::HGCalTower::Detector::CE_E);
+    addTowers(outputValues_H, l1thgcfirmware::HGCalTower::Detector::CE_H);
+
     startFrame = nextStartFrame;
     iBX++;
   }
@@ -378,6 +391,7 @@ int main(int argc, char** argv)
   delete ts;
 
   std::cout << "\nTotal BXs processed: " << iBX << std::endl;
+  std::cout << "TOWERS total " << towers.size() << ", BX 0: " << towers.towersInBX(0).size() << std::endl;
 
   return 0;
 }
